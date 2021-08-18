@@ -1,0 +1,291 @@
+---
+title: "data_viz_morning"
+author: "Juliet"
+date: "8/18/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+library(janitor)
+library(tidyverse)
+
+# for data viz:
+library(patchwork)
+library(ggrepel)
+library(gghighlight)
+library(paletteer)
+library(ggExtra)
+library(beeswarm)
+#this one is for data:
+library(gapminder)
+#go-to for working with spatial data in R, propietary software:
+library(sf)
+
+```
+
+## get the lizards data
+
+```{r}
+lizards <- read_csv(here("data_tidy", "lizards.csv"))
+
+#to check working directory, in console type getwd() or here::here()
+```
+# Make a (bad) historgram of lizard weights
+
+```{r}
+lizard_weights <- ggplot(data = lizards, aes(x = weight)) +
+  geom_histogram(fill = "orange",
+                 color = "cyan",
+                 size = 0.8,
+                 linetype = "dotted")
+
+# AKA
+
+#lizard_weights <- ggplot() +
+#  geom_histogram(data = lizards, aes(x = weight))
+
+#this second way gives you flexibility to overlay 2 plots from 2 diff datasets
+
+# color = points and lines
+# fill = bars and such
+# size = changes line width, can be whole numbers like 3 or decimal to make smaller like 0.2
+
+lizard_weights
+```
+
+## Make a scatterplot, total_length = x, weight = y
+
+```{r}
+lizards_scatter <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point(shape = 22,
+             fill = "yellow",
+             color = "red",
+             size = 2,
+             alpha = 0.5)
+
+# shape numbers represent different shapes for the points, 10-22 is a good range but it geos higher to random numbers
+# some point styles only have color, some have color and fill
+
+lizards_scatter
+```
+
+## Make a bubble plot where color changes based on common name and size varies based on total length
+
+```{r}
+lizards_bubble <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point(aes(color = common_name,
+                  size = total_length), 
+             shape = 22,
+             fill = "black") +
+  theme_get()
+
+lizards_bubble
+```
+## Facet
+
+```{r}
+#now consider facet_wrap vs facet_grid (creates a grid based on 2 cat. var, and populates each intersection with a diff graph), facet_wrap interprets the number of graphs you want based on the groups it recognizes in the col you give it with ~col
+# with facet wrap the argument ncol = # means you tell R how many graphs to put into each row
+
+lizards_facet_wrap <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point(aes(color = common_name)) +
+  theme_get() +
+  facet_wrap(~common_name, ncol = 10)
+
+lizards_facet_wrap
+
+#---------------------------
+#facet_grid(rows ~ col)
+
+lizards_facet_grid <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point(aes(color = common_name)) +
+  facet_grid(sex ~ tail)
+
+lizards_facet_grid
+```
+# Find lizard counts by common name
+
+```{r}
+lizard_counts <- lizards %>% 
+  group_by(common_name) %>% 
+  summarize(count = n())
+
+lizard_counts
+
+# AKA
+
+lizard_counts <- lizards %>% dplyr::count(common_name)
+
+lizard_counts
+
+lizard_counts_cn_tail <- lizards %>% count(common_name, tail)
+lizard_counts_cn_tail
+
+# also consider tally() but not as good
+
+
+```
+
+```{r}
+lizard_counts <- lizards %>% 
+  group_by(common_name) %>% 
+  summarize(count = n())
+
+lizard_counts
+
+#you can specify x and y and not put them in a particular order
+# here, we want the y axis to have the names beause they are long and it is best to have them readable on the y-axis so they arent crowded
+
+ggplot(data = lizard_counts, aes(y = fct_reorder(common_name, count), x = count)) +
+  geom_col(aes(fill = common_name, show.legend = FALSE)) +
+  labs(x = "Lizard Count")
+
+# can also put coord_flip() instead of specifying y = common_names and x = count in aes(), but this is less direct and more confusing
+# when you convert to a factor, ggplot's default is alphabetical, but if you want a particular order you need to make it a factor and assign the factor levels based on the value assigned in another variable
+# this package is "forcats" in the tidyverse
+```
+
+Try converting common_name to an ordered factor outside of ggplot
+
+```{r}
+change_common_name <- lizard_counts %>% 
+  mutate(common_name = fct_reorder(common_name, count))
+         
+class(change_common_name$common_name)
+levels(change_common_name$common_name)
+```
+
+# Axis sclae breaks, limits, and labels
+
+
+Scatterplot: total_length vs weight (y)
+```{r}
+ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point() +
+  scale_x_continuous(breaks = c(0, 50, 500),
+                     limits = c(0, 500),
+                     expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0))
+
+# want an ending tick mark that includes all data points, but in the original but there is an outlier
+# there are too many breaks in the gridline, too. when fixing this, specify the axis and type of variable
+# scale_ brings up tonnnnnns of options with options for cutomizations
+# breaks = c() or seq()
+```
+
+## transform the date col to class Date, then find counts of obs by date
+
+```{r}
+lizard_counts <- lizards %>% 
+  mutate(date = lubridate::mdy(date)) %>% 
+  count(date)
+
+#converting this to a date allows R to make sense of the date col, otherwise the characters are just jumbled
+  
+class(lizard_counts$date)
+```
+
+## making a line plot of date (x) and count (y)
+
+```{r}
+ggplot(data = lizard_counts, aes(x = date, y = n)) +
+  geom_line() +
+  scale_x_date(date_breaks = "3 years",
+               date_labels = "%Y")
+
+# R makes an increment on the x axis for time, if you didnt convert the class to date this would not have been executed right
+# %y means 2 -digit date and %Y means 4 -digit date
+```
+## color_gradient()
+
+```{r}
+#make your own gradient with scale-color_gradient(low =, high=)
+
+lizards_scatter <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point(aes(color = weight)) +
+  scale_color_gradient(low = "red", high = "navy")
+
+lizards_scatter
+
+#scale_color_gradientn
+
+lizards_scatter <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point(aes(color = weight)) +
+  scale_color_gradientn(colors = c("orange", "red", "purple", "black"))
+
+lizards_scatter
+
+# can have meaningful color breaks like if you are showing thresholds for air quality, use color steps
+
+lizards_scatter <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point(aes(color = weight)) +
+  scale_color_stepsn(colors = c("green", "blue", "purple"),
+                     breaks = c(0, 20, 40, 50))
+
+lizards_scatter
+```
+### discrete levels of a variable : update a color scheme using a palette in paleteer
+Make a horizontal box plot with common name on y, total length on x, with fill color changing based on common name
+```{r}
+
+lizards_fct <- lizards %>% 
+  mutate(common_name = fct_reorder(common_name, total_length, .fun = median))
+
+# check the order it made with levels()
+
+levels(lizards_fct$common_name)
+
+ggplot(data = lizards, aes(x = total_length, y = common_name)) +
+  geom_boxplot(aes(fill = common_name),
+               legend = FALSE) +
+  scale_fill_paletteer_d(palette = "tvthemes::EarthKingdom")
+```
+
+## Themes
+
+```{r}
+lizards_scatter <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point() +
+  theme(
+    panel.background = element_rect(fill = "yellow",
+                                    color = "purple",
+                                    size = 10),
+    panel.grid.major.x = element_line(color = "red"),
+    panel.grid.major = element_line(color = "blue"),
+    panel.grid.minor.y = element_line(color = "orange")
+  )
+#the most specific level trumps other vague levels when you are working in theme
+#panel.grid = element_blank() gets rid of the gridlines
+lizards_scatter
+
+```
+
+```{r}
+lizards_scatter <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point() +
+  theme(
+    panel.grid = element_blank(),
+    plot.background = element_rect(fill = "cyan"),
+    axis.text.x = element_text(color = "orange"),
+    axis.title = element_text(color = "yellow", size = 19)
+  )
+
+lizards_scatter
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
