@@ -275,6 +275,175 @@ lizards_scatter <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
 lizards_scatter
 
 ```
+## Thursday 8/19 morn
+
+## Use package ggrepel
+
+
+### make a subset from lizards called ww_lizards that only contains obs for western whiptail from the site "sand
+```{r}
+lizards_whip_sand <- lizards %>% 
+  filter(common_name == "western whiptail") %>% 
+  filter(site == "sand")
+
+#lizards_whip_sand
+
+# add labels to the points without ggrapel makes the test on top of point and hard to read
+
+lizards_whip_weight_length <- ggplot(data = lizards_whip_sand, aes(x = total_length, y = weight)) +
+geom_point() +
+  geom_text_repel(aes(label = toe_num), size = 3, max.overlaps = 20)
+
+lizards_whip_weight_length
+  
+```
+
+```{r}
+# View gapminder
+
+# create scatterplot of gdp per capita on x, and life expectancy on y, labeled by country name, filter for only europe too
+
+#(gapminder$continent)
+
+europe <- gapminder %>% 
+  filter(continent == "Europe", year == 1977)
+
+ggplot(data = europe, aes(x = gdpPercap, y = lifeExp)) +
+  geom_point() +
+  geom_text_repel(aes(label = country), size = 3)
+
+#geom_text on its own is ok for other plots, but repel is best for scatter because it is along a continuous variables and dont want the labels to overlap
+```
+
+## gghighlight
+
+```{r}
+p <- lizards_scatter
+
+#can add a layer to this groph that was previously made and stored
+
+#p + theme_dark()
+
+p + gghighlight(toe_num == 250, label_key = toe_num)
+
+#highlights values of interest, rather than labeling every value
+```
+
+
+```{r}
+q <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_line(aes(color = common_name)) +
+  gghighlight(max(weight) > 30)
+
+q
+
+# only highlight series where the max weight that exceeds 30
+# make sure to put the () around the factor which you are highlighting, not including the value > 30
+```
+
+## patchwork for compound figure
+
+```{r}
+(p | q) / q &
+  theme_dark()
+
+# within the patchwork package, | is recognized as a way to arrange plot
+# & and theme_X() is applied to all graphs
+```
+## a few new graph types
+
+### marginal plots
+
+```{r}
+## utilizes ggextra
+
+whiptails <- lizards %>% 
+  filter(common_name == "western whiptail") %>% 
+  drop_na(total_length, weight)
+
+ggplot(data = whiptails, aes(x = total_length, y = weight)) +
+  geom_point() +
+  geom_rug()
+
+
+```
+## marginal plot with box plots
+
+```{r}
+my_plot <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point(aes(color = sex), size = 2) +
+  scale_color_manual(values = c("cyan4", "black", "yellow"),
+                     name = "Sex:",
+                     labels = c("female", "juvenile", "male")) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+ggMarginal(my_plot, type = "boxplot", groupColour = TRUE)
+```
+
+### bee swarm plot 
+
+```{r}
+ggplot(data = lizards, aes(x = sex, weight)) +
+  geom_beeswarm() +
+  #geom_violin(fill = NA) +
+  geom_boxplot(fill = NA)
+
+# width is showing how many obs at that 
+
+# good for categorical data with summary statistics
+```
+
+## heatmap with geom_title()
+
+### make new data frame called lizard_counts starting with lizards with date converted to class date then count by year and common name the number of lizards obs
+
+```{r}
+lizard_counts <- lizards %>% 
+  mutate(date = lubridate::mdy(date)) %>% 
+  mutate(year = lubridate::year(date)) %>% 
+  count(year, common_name)
+
+# AKA instead of count():
+  #group_by(year, common_name) %>% 
+  #summarize(n())
+  
+# lubridate::year() pulls year from the date after you already converted the class to date
+```
+
+```{r}
+ggplot(data = lizard_counts, aes(x = year, y = common_name)) +
+  geom_tile(aes(fill = n)) +
+  geom_text(aes(label = n), color = "white", size = 3) +
+  scale_fill_gradientn(colors = c("navy", "red", "orange"))
+# +
+ # scale_fill_viridis_c() is coloblind friendly
+
+# allows you to see trends
+  
+```
+
+### make a map with sf
+
+```{r}
+plants <- read_sf(here("data_raw", "spatial_vegetation", "doc.kml")) %>% 
+  select(Name) %>% 
+  clean_names() 
+
+ggplot( data = plants) +
+  geom_sf(aes(fill = name), color = "NA", size = 0.2) +
+  scale_fill_paletteer_d(palette = "ggthemes::manyeys") +
+  # scale_x_
+  labs(x = "longitude",
+       y = "latitude",
+       fill = "dominant vegetation:") +
+  theme_void()
+  
+
+# the spatial data sticks with the dataframe even when you filter, unless you break it with grou-by and summarize
+```
+
+
 
 
 
